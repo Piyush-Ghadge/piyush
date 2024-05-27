@@ -1,0 +1,3195 @@
+Assignment: Synchronization Problems
+
+Write a solution the following synchronization problems using mutex and
+semaphore using C/C++/ Java
+1. Reader Writer Problem
+2. Producer Consumer problem
+3. Dining Philosopher Problem.
+Program:
+//Reader Writer using mutex
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+typedef struct {
+ pthread_mutex_t rwLock;
+ pthread_mutex_t mutex;
+ int readers;
+ int sharedVariable;
+} ReaderWriter;
+void initReaderWriter(ReaderWriter *rw) {
+ pthread_mutex_init(&rw->rwLock, NULL);
+ pthread_mutex_init(&rw->mutex, NULL);
+ rw->readers = 0;
+ rw->sharedVariable = 0;
+}
+void startReading(ReaderWriter *rw) {
+ pthread_mutex_lock(&rw->mutex);
+ rw->readers++;
+ if (rw->readers == 1) {
+ pthread_mutex_lock(&rw->rwLock);
+ }
+ pthread_mutex_unlock(&rw->mutex);
+ printf("Reader is reading: %d\n", rw->sharedVariable);
+ pthread_mutex_lock(&rw->mutex);
+ rw->readers--;
+ if (rw->readers == 0) {
+ pthread_mutex_unlock(&rw->rwLock);
+ }
+ pthread_mutex_unlock(&rw->mutex);
+}
+void startWriting(ReaderWriter *rw) {
+ pthread_mutex_lock(&rw->rwLock);
+ rw->sharedVariable++;
+ printf("Writer is writing: %d\n", rw->sharedVariable);
+ pthread_mutex_unlock(&rw->rwLock);
+}
+void* reader(void* arg) {
+ ReaderWriter* rw = (ReaderWriter*)arg;
+ while (1) {
+ startReading(rw);
+ usleep(1000000);
+ }
+ return NULL;
+}
+void* writer(void* arg) {
+ ReaderWriter* rw = (ReaderWriter*)arg;
+ while (1) {
+ startWriting(rw);
+ usleep(2000000);
+ }
+ return NULL;
+}
+int main() {
+ ReaderWriter rw;
+ initReaderWriter(&rw);
+ pthread_t writerThread, readerThreads[2];
+ pthread_create(&writerThread, NULL, writer, &rw);
+ for (int i = 0; i < 2; i++) {
+ pthread_create(&readerThreads[i], NULL, reader, &rw);
+ }
+ pthread_join(writerThread, NULL);
+ for (int i = 0; i < 2; i++) {
+ pthread_join(readerThreads[i], NULL);
+ }
+ pthread_mutex_destroy(&rw.rwLock);
+ pthread_mutex_destroy(&rw.mutex);
+ return 0;
+}
+Output:
+Program:
+//Reader Writer using Semaphore
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+typedef struct {
+ sem_t rwLock;
+ sem_t mutex;
+ int readers;
+ int sharedVariable;
+} ReaderWriter;
+void initReaderWriter(ReaderWriter *rw) {
+ sem_init(&rw->rwLock, 0, 1);
+ sem_init(&rw->mutex, 0, 1);
+ rw->readers = 0;
+ rw->sharedVariable = 0;
+}
+void startReading(ReaderWriter *rw) {
+ sem_wait(&rw->mutex);
+ rw->readers++;
+ if (rw->readers == 1) {
+ sem_wait(&rw->rwLock);
+ }
+ sem_post(&rw->mutex);
+ printf("Reader is reading: %d\n", rw->sharedVariable);
+ sem_wait(&rw->mutex);
+ rw->readers--;
+ if (rw->readers == 0) {
+ sem_post(&rw->rwLock);
+ }
+ sem_post(&rw->mutex);
+}
+void startWriting(ReaderWriter *rw) {
+ sem_wait(&rw->rwLock);
+ rw->sharedVariable++;
+ printf("Writer is writing: %d\n", rw->sharedVariable);
+ sem_post(&rw->rwLock);
+}
+void* reader(void* arg) {
+ ReaderWriter* rw = (ReaderWriter*)arg;
+ while (1) {
+ startReading(rw);
+ usleep(1000000);
+ }
+ return NULL;
+}
+void* writer(void* arg) {
+ ReaderWriter* rw = (ReaderWriter*)arg;
+ while (1) {
+ startWriting(rw);
+ usleep(2000000);
+ }
+ return NULL;
+}
+int main() {
+ ReaderWriter rw;
+ initReaderWriter(&rw);
+ pthread_t writerThread, readerThreads[2];
+ pthread_create(&writerThread, NULL, writer, &rw);
+ for (int i = 0; i < 2; i++) {
+ pthread_create(&readerThreads[i], NULL, reader, &rw);
+ }
+ pthread_join(writerThread, NULL);
+ for (int i = 0; i < 2; i++) {
+ pthread_join(readerThreads[i], NULL);
+ }
+ sem_destroy(&rw.rwLock);
+ sem_destroy(&rw.mutex);
+ return 0;
+}
+Output:
+Program:
+//Producer Consumer using mutex
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+#define MAX_SIZE 5
+int count = 0 , i;
+int buffer[MAX_SIZE];
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+void *consumer(void * param)
+{
+ int item;
+ while(i<5)
+ {
+ pthread_mutex_lock(&mutex);
+ if(count > 0)
+ {
+ count--;
+ item = buffer[count];
+ printf("Consumed: %d\n", item);
+ }
+ pthread_mutex_unlock(&mutex);
+ sleep(1);
+ }
+}
+void *producer(void * param)
+{
+ for(i = 0 ; i < 5 ; i++)
+ {
+ pthread_mutex_lock(&mutex);
+ if(count<MAX_SIZE)
+ {
+ buffer[count] = i;
+ count++;
+ printf("Produced: %d\n", i);
+ }
+ pthread_mutex_unlock(&mutex);
+ sleep(3);
+ }
+}
+int main()
+{
+ pthread_t producerThread , consumerThread;
+ pthread_create(&producerThread , NULL , producer , NULL);
+ pthread_create(&consumerThread , NULL , consumer , NULL);
+ pthread_join(producerThread, NULL);
+ pthread_join(consumerThread, NULL);
+ return 0;
+}
+Output:
+Program:
+//Producer Consumer using Semaphore
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#define MAX_SIZE 5
+typedef struct{
+ int queue[MAX_SIZE];
+ int capacity;
+ int front, rear, count;
+ sem_t semFull, semEmpty;
+}Buffer;
+Buffer buffer;
+void initBuffer(){
+ buffer.capacity = MAX_SIZE;
+ buffer.front = buffer.rear = buffer.count = 0;
+ sem_init(&buffer.semEmpty, 0, MAX_SIZE);
+ sem_init(&buffer.semFull, 0, 0);
+}
+void insert(int item){
+ sem_wait(&buffer.semEmpty);
+ buffer.queue[buffer.rear] = item;
+ buffer.rear = (buffer.rear + 1) % buffer.capacity;
+ buffer.count++;
+ sem_post(&buffer.semFull);
+}
+int removeItem(){
+ int item;
+ sem_wait(&buffer.semFull);
+ item = buffer.queue[buffer.front];
+ buffer.front = (buffer.front + 1) % buffer.capacity;
+ buffer.count--;
+ sem_post(&buffer.semEmpty);
+ return item;
+}
+void* producer(void* arg){
+ for(int i = 0; i<5; i++){
+ insert(i);
+ printf("Produced : %d\n", i);
+ usleep(500000);
+ }
+ return NULL;
+}
+void* consumer(void* arg){
+ for(int i = 0; i < 5; i++) {
+ int item = removeItem();
+ printf("Consumed : %d\n", item);
+ usleep(1000000);
+ }
+ return NULL;
+}
+int main() {
+ initBuffer();
+ pthread_t producerThread, consumerThread;
+ pthread_create(&producerThread, NULL, producer, NULL);
+ pthread_create(&consumerThread, NULL, consumer, NULL);
+ pthread_join(producerThread, NULL);
+ pthread_join(consumerThread, NULL);
+ sem_destroy(&buffer.semEmpty);
+ sem_destroy(&buffer.semFull);
+ return 0;
+}
+Output:
+Program:
+//Dining Philosopher using mutex
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+#define NUM_PHILOSOPHERS 5
+pthread_mutex_t forks[NUM_PHILOSOPHERS];
+pthread_mutex_t mutex;
+int count_eating = 0;
+void think(int philosopherId) {
+ printf("Philosopher %d is thinking...\n", philosopherId + 1);
+ sleep(1);
+}
+void eat(int philosopherId) {
+ printf("Philosopher %d is eating...\n", philosopherId + 1);
+ sleep(2);
+}
+void *dine(void *arg) {
+ int philosopherId = *(int *)arg;
+ while (1) {
+ think(philosopherId);
+ pthread_mutex_lock(&mutex);
+ if (count_eating < NUM_PHILOSOPHERS - 1) {
+ count_eating++;
+ pthread_mutex_unlock(&mutex);
+ } else {
+ pthread_mutex_unlock(&mutex);
+ continue;
+ }
+ pthread_mutex_lock(&forks[philosopherId]);
+ pthread_mutex_lock(&forks[(philosopherId + 1) %
+NUM_PHILOSOPHERS]);
+ eat(philosopherId);
+ pthread_mutex_unlock(&forks[philosopherId]);
+ pthread_mutex_unlock(&forks[(philosopherId + 1) %
+NUM_PHILOSOPHERS]);
+ pthread_mutex_lock(&mutex);
+ count_eating--;
+ pthread_mutex_unlock(&mutex);
+ }
+ return NULL;
+}
+int main() {
+ pthread_t philosophers[NUM_PHILOSOPHERS];
+ int philosopher_ids[NUM_PHILOSOPHERS];
+ pthread_mutex_init(&mutex, NULL);
+ for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+ pthread_mutex_init(&forks[i], NULL);
+ }
+ for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+ philosopher_ids[i] = i;
+ pthread_create(&philosophers[i], NULL, dine, &philosopher_ids[i]);
+ }
+ for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+ pthread_join(philosophers[i], NULL);
+ }
+ return 0;
+}
+Output:
+Program:
+//Dining Philosopher using Semaphore
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
+#define NUM_PHILOSOPHERS 5
+sem_t forks[NUM_PHILOSOPHERS];
+sem_t mutex;
+int count_eating = 0;
+void think(int philosopherId) {
+ printf("Philosopher %d is thinking...\n", philosopherId + 1);
+ sleep(1);
+}
+void eat(int philosopherId) {
+ printf("Philosopher %d is eating...\n", philosopherId + 1);
+ sleep(2);
+}
+void *dine(void *arg) {
+ int philosopherId = *(int *)arg;
+ while (1) {
+ think(philosopherId);
+ sem_wait(&mutex);
+ if (count_eating < NUM_PHILOSOPHERS - 1) {
+ count_eating++;
+ sem_post(&mutex);
+ } else {
+ sem_post(&mutex);
+ continue;
+ }
+ sem_wait(&forks[philosopherId]);
+ sem_wait(&forks[(philosopherId + 1) % NUM_PHILOSOPHERS]);
+ eat(philosopherId);
+ sem_post(&forks[philosopherId]);
+ sem_post(&forks[(philosopherId + 1) % NUM_PHILOSOPHERS]);
+ sem_wait(&mutex);
+ count_eating--;
+ sem_post(&mutex);
+ }
+ return NULL;
+}
+int main() {
+ pthread_t philosophers[NUM_PHILOSOPHERS];
+ int philosopher_ids[NUM_PHILOSOPHERS];
+ sem_init(&mutex, 0, 1);
+ for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+ sem_init(&forks[i], 0, 1);
+ }
+ for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+ philosopher_ids[i] = i;
+ pthread_create(&philosophers[i], NULL, dine, &philosopher_ids[i]);
+ }
+ for (int i = 0; i < NUM_PHILOSOPHERS; i++) {
+ pthread_join(philosophers[i], NULL);
+ }
+ return 0;
+}
+
+
+Assignment: Scheduling Algorithms
+
+Write a C / C++/ Java program to find the average turnaround time and
+average waiting time for these processes with the following algorithms
+1. Preemptive & non preemptive priority algorithm
+2. Preemptive & non preemptive SJF algorithm
+3. Round Robin algorithm with TQ =2
+4. FCFS
+Program:
+//1. Priority Scheduling Preemptive
+#include<stdio.h>
+#include<limits.h>
+struct Process {
+ int id;
+ int arrival;
+ int burst;
+ int remaining;
+ int priority;
+ int wait;
+ int turnaround;
+};
+int findHighestPriority(struct Process processes[], int n, int currentTime) {
+ int highestPriority = INT_MAX;
+ int highestPriorityIndex = -1;
+ for (int i = 0; i < n; i++) {
+ if (processes[i].arrival <= currentTime && processes[i].remaining > 0 &&
+processes[i].priority < highestPriority) {
+ highestPriority = processes[i].priority;
+ highestPriorityIndex = i;
+ }
+ }
+ return highestPriorityIndex;
+}
+void calculateTimes(struct Process processes[], int n) {
+ int currentTime = 0;
+ int completedProcesses = 0;
+ while (completedProcesses != n) {
+ int index = findHighestPriority(processes, n, currentTime);
+ if (index == -1) {
+ currentTime++;
+ continue;
+ }
+ printf("%d", processes[index].id);
+ processes[index].remaining--;
+ currentTime++;
+ if (processes[index].remaining == 0) {
+ completedProcesses++;
+ processes[index].turnaround = currentTime - processes[index].arrival;
+ processes[index].wait = processes[index].turnaround -
+processes[index].burst;
+ if (processes[index].wait < 0) {
+ processes[index].wait = 0;
+ }
+ }
+ if(completedProcesses < n) {
+ printf("->");
+ }
+ }
+ printf("\n");
+}
+void displayResults(struct Process processes[], int n) {
+ printf("Process\t Arrival Time\t Burst Time\t Priority\t Waiting Time\t
+Turnaround Time\n");
+ for (int i = 0; i < n; i++) {
+ printf("%d\t\t %d\t\t %d\t\t %d\t\t %d\t\t %d\n", processes[i].id,
+processes[i].arrival, processes[i].burst, processes[i].priority, processes[i].wait,
+processes[i].turnaround);
+ }
+}
+int main() {
+ int n;
+ printf("Enter the number of processes: ");
+ scanf("%d", &n);
+ struct Process processes[n];
+ for (int i = 0; i < n; i++) {
+ printf("Enter arrival time, burst time, and priority for process %d: ", i + 1);
+ scanf("%d %d %d", &processes[i].arrival, &processes[i].burst,
+&processes[i].priority);
+ processes[i].id = i + 1;
+ processes[i].remaining = processes[i].burst;
+ }
+ printf("Execution order: ");
+ calculateTimes(processes, n);
+ double avgWaitingTime = 0, avgTurnaroundTime = 0;
+ for (int i = 0; i < n; i++) {
+ avgWaitingTime += processes[i].wait;
+ avgTurnaroundTime += processes[i].turnaround;
+ }
+ avgWaitingTime /= n;
+ avgTurnaroundTime /= n;
+ printf("Average Waiting Time: %.2f\n", avgWaitingTime);
+ printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
+ displayResults(processes, n);
+ return 0;
+}
+Output:
+Program:
+//1. Priority Scheduling Non Preemptive
+#include <stdio.h>
+#include <limits.h>
+struct Process {
+ int id;
+ int arrival;
+ int burst;
+ int priority;
+ int wait;
+ int turnaround;
+ int finish;
+};
+void swap(struct Process *a, struct Process *b) {
+ struct Process temp = *a;
+ *a = *b;
+ *b = temp;
+}
+void sortProcessesByArrival(struct Process processes[], int n) {
+ for (int i = 0; i < n - 1; i++) {
+ for (int j = 0; j < n - i - 1; j++) {
+ if (processes[j].arrival > processes[j + 1].arrival) {
+ swap(&processes[j], &processes[j + 1]);
+ }
+ }
+ }
+}
+void sortProcessesByPriority(struct Process processes[], int n) {
+ for (int i = 0; i < n - 1; i++) {
+ for (int j = 0; j < n - i - 1; j++) {
+ if (processes[j].priority > processes[j + 1].priority) {
+ swap(&processes[j], &processes[j + 1]);
+ }
+ }
+ }
+}
+int findHighestPriority(struct Process processes[], int n, int currentTime) {
+ int highestPriorityIndex = -1;
+ int highestPriority = INT_MAX;
+ for (int i = 0; i < n; i++) {
+ if (processes[i].arrival <= currentTime && processes[i].burst > 0) {
+ if (processes[i].priority < highestPriority) {
+ highestPriority = processes[i].priority;
+ highestPriorityIndex = i;
+ }
+ }
+ }
+ return highestPriorityIndex;
+}
+void calculateTimes(struct Process processes[], int n) {
+ int currentTime = 0;
+ int totalWaitTime = 0;
+ int totalTurnaroundTime = 0;
+ printf("Execution Order: ");
+ for (int i = 0; i < n; i++) {
+ int highestPriorityIndex = findHighestPriority(processes, n, currentTime);
+ if (highestPriorityIndex == -1) {
+ break;
+ }
+ printf("%d ", processes[highestPriorityIndex].id);
+ processes[highestPriorityIndex].wait = currentTime -
+processes[highestPriorityIndex].arrival;
+ processes[highestPriorityIndex].finish = currentTime +
+processes[highestPriorityIndex].burst;
+ processes[highestPriorityIndex].turnaround =
+processes[highestPriorityIndex].wait + processes[highestPriorityIndex].burst;
+ totalWaitTime += processes[highestPriorityIndex].wait;
+ totalTurnaroundTime += processes[highestPriorityIndex].turnaround;
+ currentTime += processes[highestPriorityIndex].burst;
+ processes[highestPriorityIndex].burst = 0;
+ }
+ double avgWaitTime = (double)totalWaitTime / n;
+ double avgTurnaroundTime = (double)totalTurnaroundTime / n;
+ printf("\nAverage Waiting Time: %.2f\n", avgWaitTime);
+ printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
+}
+void displayResults(struct Process processes[], int n) {
+ printf("Process\t Arrival Time\t Burst Time\t Waiting Time\t Turnaround
+Time\t Finish Time\n");
+ for (int i = 0; i < n; i++) {
+ printf("%d\t\t %d\t\t %d\t\t %d\t\t %d\t\t %d\n", processes[i].id,
+processes[i].arrival, processes[i].burst, processes[i].wait,
+processes[i].turnaround, processes[i].finish);
+ }
+}
+int main() {
+ int n;
+ printf("Enter the number of processes: ");
+ scanf("%d", &n);
+ struct Process processes[n];
+ for (int i = 0; i < n; i++) {
+ printf("Enter arrival time, burst time, and priority for process %d: ", i + 1);
+ scanf("%d %d %d", &processes[i].arrival, &processes[i].burst,
+&processes[i].priority);
+ processes[i].id = i + 1;
+ }
+ sortProcessesByArrival(processes, n);
+ calculateTimes(processes, n);
+ displayResults(processes, n);
+ return 0;
+}
+Output:
+Program:
+//2. SJF (Shortest Job First) Preemptive
+#include <stdio.h>
+#include <limits.h>
+struct Process {
+ int id;
+ int arrival;
+ int burst;
+ int wait;
+ int turnaround;
+ int remaining;
+ int finish;
+};
+void swap(struct Process *a, struct Process *b) {
+ struct Process temp = *a;
+ *a = *b;
+ *b = temp;
+}
+void sortProcessesByArrival(struct Process processes[], int n) {
+ for (int i = 0; i < n - 1; i++) {
+ for (int j = 0; j < n - i - 1; j++) {
+ if (processes[j].arrival > processes[j + 1].arrival) {
+ swap(&processes[j], &processes[j + 1]);
+ }
+ }
+ }
+}
+int findShortestJob(struct Process processes[], int n, int currentTime) {
+ int shortestIndex = -1;
+ int shortestBurst = INT_MAX;
+ int remainingProcesses = 0;
+ for (int i = 0; i < n; i++) {
+ if (processes[i].arrival <= currentTime && processes[i].remaining > 0) {
+ remainingProcesses++;
+ if (processes[i].remaining < shortestBurst) {
+ shortestBurst = processes[i].remaining;
+ shortestIndex = i;
+ }
+ }
+ }
+ if (remainingProcesses == 0) {
+ return -1;
+ }
+ return shortestIndex;
+}
+void calculateTimes(struct Process processes[], int n) {
+ int currentTime = 0;
+ int totalWaitTime = 0;
+ int totalTurnaroundTime = 0;
+ printf("Execution Order: ");
+ while (1) {
+ int shortestIndex = findShortestJob(processes, n, currentTime);
+ if (shortestIndex == -1) {
+ break;
+ }
+ printf("%d ", processes[shortestIndex].id);
+ processes[shortestIndex].remaining--;
+ currentTime++;
+ if (processes[shortestIndex].remaining == 0) {
+ processes[shortestIndex].finish = currentTime;
+ processes[shortestIndex].wait = processes[shortestIndex].finish -
+processes[shortestIndex].arrival - processes[shortestIndex].burst;
+ processes[shortestIndex].turnaround = processes[shortestIndex].wait +
+processes[shortestIndex].burst;
+ totalWaitTime += processes[shortestIndex].wait;
+ totalTurnaroundTime += processes[shortestIndex].turnaround;
+ }
+ }
+ double avgWaitTime = (double)totalWaitTime / n;
+ double avgTurnaroundTime = (double)totalTurnaroundTime / n;
+ printf("\nAverage Waiting Time: %.2f\n", avgWaitTime);
+ printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
+}
+void displayResults(struct Process processes[], int n) {
+ printf("Process\t Arrival Time\t Burst Time\t Waiting Time\t Turnaround
+Time\t Finish Time\n");
+ for (int i = 0; i < n; i++) {
+ printf("%d\t\t %d\t\t %d\t\t %d\t\t %d\t\t %d\n", processes[i].id,
+processes[i].arrival, processes[i].burst, processes[i].wait,
+processes[i].turnaround, processes[i].finish);
+ }
+}
+int main() {
+ int n;
+ printf("Enter the number of processes: ");
+ scanf("%d", &n);
+ struct Process processes[n];
+ for (int i = 0; i < n; i++) {
+ printf("Enter arrival time and burst time for process %d: ", i + 1);
+ scanf("%d %d", &processes[i].arrival, &processes[i].burst);
+ processes[i].id = i + 1;
+ processes[i].remaining = processes[i].burst;
+ }
+ sortProcessesByArrival(processes, n);
+ calculateTimes(processes, n);
+ displayResults(processes, n);
+ return 0;
+}
+Output:
+Program:
+//2. SJF (Shortest Job First) Non Preemptive
+#include <stdio.h>
+#include <limits.h>
+struct Process {
+ int id;
+ int arrival;
+ int burst;
+ int wait;
+ int turnaround;
+ int remaining;
+ int finish;
+};
+void swap(struct Process *a, struct Process *b) {
+ struct Process temp = *a;
+ *a = *b;
+ *b = temp;
+}
+void sortProcessesByArrival(struct Process processes[], int n) {
+ for (int i = 0; i < n - 1; i++) {
+ for (int j = 0; j < n - i - 1; j++) {
+ if (processes[j].arrival > processes[j + 1].arrival) {
+ swap(&processes[j], &processes[j + 1]);
+ }
+ }
+ }
+}
+int findShortestJob(struct Process processes[], int n, int currentTime) {
+ int shortestIndex = -1;
+ int shortestBurst = INT_MAX;
+ for (int i = 0; i < n; i++) {
+ if (processes[i].arrival <= currentTime && processes[i].remaining > 0) {
+ if (processes[i].burst < shortestBurst) {
+ shortestBurst = processes[i].burst;
+ shortestIndex = i;
+ }
+ }
+ }
+ return shortestIndex;
+}
+void calculateTimes(struct Process processes[], int n) {
+ int currentTime = 0;
+ int totalWaitTime = 0;
+ int totalTurnaroundTime = 0;
+ printf("Execution Order: ");
+ for (int i = 0; i < n; i++) {
+ int shortestIndex = findShortestJob(processes, n, currentTime);
+ if (shortestIndex == -1) {
+ break;
+ }
+ printf("%d ", processes[shortestIndex].id);
+ processes[shortestIndex].wait = currentTime -
+processes[shortestIndex].arrival;
+ processes[shortestIndex].finish = currentTime +
+processes[shortestIndex].burst;
+ processes[shortestIndex].turnaround = processes[shortestIndex].wait +
+processes[shortestIndex].burst;
+ totalWaitTime += processes[shortestIndex].wait;
+ totalTurnaroundTime += processes[shortestIndex].turnaround;
+ currentTime += processes[shortestIndex].burst;
+ processes[shortestIndex].remaining = 0;
+ }
+ double avgWaitTime = (double)totalWaitTime / n;
+ double avgTurnaroundTime = (double)totalTurnaroundTime / n;
+ printf("\nAverage Waiting Time: %.2f\n", avgWaitTime);
+ printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
+}
+void displayResults(struct Process processes[], int n) {
+ printf("Process\t Arrival Time\t Burst Time\t Waiting Time\t Turnaround
+Time\t Finish Time\n");
+ for (int i = 0; i < n; i++) {
+ printf("%d\t\t %d\t\t %d\t\t %d\t\t %d\t\t %d\n", processes[i].id,
+processes[i].arrival, processes[i].burst, processes[i].wait,
+processes[i].turnaround, processes[i].finish);
+ }
+}
+int main() {
+ int n;
+ printf("Enter the number of processes: ");
+ scanf("%d", &n);
+ struct Process processes[n];
+ for (int i = 0; i < n; i++) {
+ printf("Enter arrival time and burst time for process %d: ", i + 1);
+ scanf("%d %d", &processes[i].arrival, &processes[i].burst);
+ processes[i].id = i + 1;
+ processes[i].remaining = processes[i].burst;
+ }
+ displayResults(processes, n);
+ sortProcessesByArrival(processes, n);
+ calculateTimes(processes, n);
+ return 0;
+}
+Output:
+Program:
+//3. Round Robin (Time Quantum = 2)
+#include<stdio.h>
+#include<stdlib.h>
+struct Process {
+ int id;
+ int arrival;
+ int burst;
+ int remaining;
+ int wait;
+ int turnaround;
+};
+char* calculateTimes(struct Process processes[], int n, int quantum) {
+ int remainingTime[n];
+ for (int i = 0; i < n; i++) {
+ remainingTime[i] = processes[i].burst;
+ }
+ int currentTime = 0;
+ int completedProcesses = 0;
+ char* executionOrder = (char*)malloc(n * 5 * sizeof(char));
+ int executionIndex = 0;
+ while (completedProcesses != n) {
+ int done = 1;
+ for (int i = 0; i < n; i++) {
+ if (remainingTime[i] > 0) {
+ done = 0;
+ int executionTime = (remainingTime[i] > quantum) ? quantum :
+remainingTime[i];
+ for (int j = 0; j < executionTime; j++) {
+ if (executionIndex > 0) {
+ executionOrder[executionIndex++] = '-';
+ executionOrder[executionIndex++] = '>';
+ executionOrder[executionIndex++] = ' ';
+ }
+ executionOrder[executionIndex++] = processes[i].id + '0';
+ executionOrder[executionIndex++] = ' ';
+ }
+ currentTime += executionTime;
+ remainingTime[i] -= executionTime;
+ if (remainingTime[i] == 0) {
+ completedProcesses++;
+ processes[i].wait = currentTime - processes[i].arrival -
+processes[i].burst;
+ if (processes[i].wait < 0) {
+ processes[i].wait = 0;
+ }
+ processes[i].turnaround = processes[i].burst + processes[i].wait;
+ }
+ }
+ }
+ if (done == 1)
+ break;
+ }
+ executionOrder[executionIndex] = '\0';
+ return executionOrder;
+}
+void displayResults(struct Process processes[], int n) {
+ printf("Process\t Arrival Time\t Burst Time\t Waiting Time\t Turnaround
+Time\n");
+ for (int i = 0; i < n; i++) {
+ printf("%d\t\t %d\t\t %d\t\t %d\t\t %d\n", processes[i].id,
+processes[i].arrival, processes[i].burst, processes[i].wait,
+processes[i].turnaround);
+ }
+}
+int main() {
+ int n, quantum;
+ printf("Enter the number of processes: ");
+ scanf("%d", &n);
+ struct Process processes[n];
+ for (int i = 0; i < n; i++) {
+ printf("Enter arrival time and burst time for process %d: ", i + 1);
+ scanf("%d %d", &processes[i].arrival, &processes[i].burst);
+ processes[i].id = i + 1;
+ processes[i].remaining = processes[i].burst;
+ }
+ printf("Enter the time quantum: ");
+ scanf("%d", &quantum);
+ char* executionOrder = calculateTimes(processes, n, quantum);
+ printf("Execution Order: %s\n", executionOrder);
+ displayResults(processes, n);
+ free(executionOrder);
+ return 0;
+}
+Output:
+Program:
+//4. FCFS (First Come First Serve)
+#include<stdio.h>
+struct Process {
+ int id;
+ int arrival;
+ int burst;
+ int wait;
+ int turnaround;
+ int finish; // Finish time
+};
+void swap(struct Process *a, struct Process *b) {
+ struct Process temp = *a;
+ *a = *b;
+ *b = temp;
+}
+void sortProcessesByArrival(struct Process processes[], int n) {
+ for (int i = 0; i < n - 1; i++) {
+ for (int j = 0; j < n - i - 1; j++) {
+ if (processes[j].arrival > processes[j + 1].arrival) {
+ swap(&processes[j], &processes[j + 1]);
+ }
+ }
+ }
+}
+void calculateTimes(struct Process processes[], int n) {
+ int currentTime = 0;
+ for (int i = 0; i < n; i++) {
+ if (currentTime < processes[i].arrival) {
+ currentTime = processes[i].arrival;
+ }
+ processes[i].wait = currentTime - processes[i].arrival;
+ processes[i].turnaround = processes[i].wait + processes[i].burst;
+ currentTime += processes[i].burst;
+ processes[i].finish = currentTime; // Set the finish time for the process
+ }
+}
+void displayResults(struct Process processes[], int n) {
+ printf("Process\t Arrival Time\t Burst Time\t Waiting Time\t Turnaround
+Time\t Finish Time\n");
+ for (int i = 0; i < n; i++) {
+ printf("%d\t\t %d\t\t %d\t\t %d\t\t %d\t\t %d\t\t %d\n", processes[i].id,
+processes[i].arrival, processes[i].burst, processes[i].wait,
+processes[i].turnaround, processes[i].finish);
+ }
+}
+void displayExecutionOrder(struct Process processes[], int n) {
+ printf("Execution Order: ");
+ for (int i = 0; i < n; i++) {
+ printf("%d ", processes[i].id);
+ if (i != n - 1) {
+ printf("-> ");
+ }
+ }
+ printf("\n");
+}
+int main() {
+ int n;
+ printf("Enter the number of processes: ");
+ scanf("%d", &n);
+ struct Process processes[n];
+ for (int i = 0; i < n; i++) {
+ printf("Enter arrival time and burst time for process %d: ", i + 1);
+ scanf("%d %d", &processes[i].arrival, &processes[i].burst);
+ processes[i].id = i + 1;
+ }
+ sortProcessesByArrival(processes, n);
+ calculateTimes(processes, n);
+ displayResults(processes, n);
+ displayExecutionOrder(processes, n);
+ double avgWaitingTime = 0, avgTurnaroundTime = 0;
+ for (int i = 0; i < n; i++) {
+ avgWaitingTime += processes[i].wait;
+ avgTurnaroundTime += processes[i].turnaround;
+ }
+ avgWaitingTime /= n;
+ avgTurnaroundTime /= n;
+ printf("Average Waiting Time: %.2f\n", avgWaitingTime);
+ printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
+ return 0;
+}
+
+Assignment: Banker’s Algorithm
+Program:
+#include <stdio.h>
+#define P 5
+#define R 3
+// Function to calculate the Need matrix
+void calculateNeed(int need[P][R], int max[P][R], int allot[P][R])
+{
+ for (int i = 0; i < P; i++)
+ for (int j = 0; j < R; j++)
+ need[i][j] = max[i][j] - allot[i][j];
+ printf("\nNeed Matrix:\n");
+ for (int i = 0; i < P; i++)
+ {
+ for (int j = 0; j < R; j++)
+ printf("%d ",need[i][j]);
+ printf("\n");
+ }
+}
+// Function to check if the system is in a safe state
+int isSafe(int processes[], int avail[], int max[][R], int allot[][R]) {
+ int need[P][R];
+ calculateNeed(need, max, allot); // Calculate the Need matrix
+ int finish[P] = {0}; // Array to track finished processes
+ int safeSeq[P];// Array to store the safe sequence
+ for(int i = 0;i<P;i++)
+ {
+ safeSeq[i] = -1;
+ }
+ int work[R];
+ for (int i = 0; i < R; i++)
+ work[i] = avail[i];
+ int count = 0;
+ while (count < P) {
+ int found = 0;
+ for (int p = 0; p < P; p++) {
+ if (finish[p] == 0) {
+ int j;
+ for (j = 0; j < R; j++)
+ if (need[p][j] > work[j])
+ break;
+ if (j == R) {
+ printf("Process %d can be allocated resources.\n", p);
+ for (int k = 0; k < R; k++)
+ work[k] += allot[p][k]; // Update available resources
+ safeSeq[count++] = p; // Add process to safe sequence
+ finish[p] = 1; // Mark process as finished
+ printf("Process %d finished.\n", p);
+ found = 1;
+ printf("\nWork: ");
+ for (int i = 0; i < R; i++)
+ printf("%d ", work[i]);
+ printf("\n");
+ printf("Safe Sequence: ");
+ for (int i = 0; i < P; i++)
+ printf("%d ", safeSeq[i]);
+ printf("\n\n");
+ }
+ }
+ }
+ if (found == 0) {
+ printf("System is not in a safe state\n");
+ return 0;
+ }
+ }
+ printf("System is in a safe state.\nSafe sequence is: ");
+ for (int i = 0; i < P; i++)
+ printf("%d ", safeSeq[i]);
+ printf("\n");
+ return 1;
+}
+int main() {
+ int processes[] = {0, 1, 2, 3, 4};
+ int avail[] = {3, 3, 2};
+ int max[][R] = {{7, 5, 3},
+ {3, 2, 2},
+ {9, 0, 2},
+ {2, 2, 2},
+ {4, 3, 3}};
+ int allot[][R] = {{0, 1, 0},
+ {2, 0, 0},
+ {3, 0, 2},
+ {2, 1, 1},
+ {0, 0, 2}};
+ // Print initial values
+ printf("Initial Values:\n");
+ printf("Processes: ");
+ for (int i = 0; i < P; i++)
+ printf("%d ", processes[i]);
+ printf("\nAvailable Resources: ");
+ for (int i = 0; i < R; i++)
+ printf("%d ", avail[i]);
+ printf("\nMax Matrix:\n");
+ for (int i = 0; i < P; i++) {
+ for (int j = 0; j < R; j++)
+ printf("%d ", max[i][j]);
+ printf("\n");
+ }
+ printf("Allocation Matrix:\n");
+ for (int i = 0; i < P; i++) {
+ for (int j = 0; j < R; j++)
+ printf("%d ", allot[i][j]);
+ printf("\n");
+ }
+ // Call the safety algorithm
+ isSafe(processes, avail, max, allot);
+ return 0;
+}
+
+Assignment: Deadlock Detection Algorithm
+Program:
+#include <stdio.h>
+#include <stdbool.h>
+#define NUM_OF_PROCESSES 5
+#define NUM_OF_RESOURCES 3
+void printDebugInfo(int work[], int available[], int
+request[][NUM_OF_RESOURCES], int
+allocation[][NUM_OF_RESOURCES], bool finished[], int process) {
+ printf("Allocating resources to Process P%d\n", process);
+ printf("Work: ");
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ printf("%d ", work[i]);
+ }
+ printf("\nAvailable: ");
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ printf("%d ", available[i]);
+ }
+ printf("\nRequest for Process P%d: ", process);
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ printf("%d ", request[process][i]);
+ }
+ printf("\nAllocation for Process P%d: ", process);
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ printf("%d ", allocation[process][i]);
+ }
+ printf("\nFinish Status: ");
+ for (int i = 0; i < NUM_OF_PROCESSES; i++) {
+ printf("%d ", finished[i]);
+ }
+ printf("\n--------------------------------------------------\n");
+}
+void detectDeadlock(int allocation[][NUM_OF_RESOURCES], int
+request[][NUM_OF_RESOURCES], int available[]) {
+ bool finished[NUM_OF_PROCESSES] = {false};
+ int work[NUM_OF_RESOURCES];
+ bool noDeadlock = true;
+ // Initialize work array
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ work[i] = available[i];
+ }
+ printf("___Initial____\n");
+ printf("Work: ");
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ printf("%d ", work[i]);
+ }
+ printf("\nAvailable: ");
+ for (int i = 0; i < NUM_OF_RESOURCES; i++) {
+ printf("%d ", available[i]);
+ }
+ printf("\nFinish Status: ");
+ for (int i = 0; i < NUM_OF_PROCESSES; i++) {
+ printf("%d ", finished[i]);
+ }
+ printf("\n__________\n");
+ while (noDeadlock) {
+ noDeadlock = false;
+ for (int i = 0; i < NUM_OF_PROCESSES; i++) {
+ if (!finished[i]) {
+ bool canAllocate = true;
+ for (int j = 0; j < NUM_OF_RESOURCES; j++) {
+ if (request[i][j] > work[j]) {
+ canAllocate = false;
+ break;
+ }
+ }
+ if (canAllocate) {
+ noDeadlock = true;
+ finished[i] = true;
+ // Allocate resources
+ for (int j = 0; j < NUM_OF_RESOURCES; j++) {
+ work[j] += allocation[i][j];
+ available[j] = work[j];
+ }
+ printDebugInfo(work, available, request, allocation, finished, i);
+ }
+ }
+ }
+
+ for (int i = 0; i < NUM_OF_PROCESSES; i++) {
+ if (!finished[i]) {
+ printf("Deadlock detected. Process P%d is deadlocked.\n", i);
+ return;
+ }
+ }
+ printf("No deadlock detected.\n");
+}
+int main() {
+ int allocation[NUM_OF_PROCESSES][NUM_OF_RESOURCES] = {
+ {0, 1, 0},
+ {2, 0, 0},
+ {3, 0, 3},
+ {3, 1, 1},
+ {0, 0, 2}
+ };
+ int request[NUM_OF_PROCESSES][NUM_OF_RESOURCES] = {
+ {0, 0, 0},
+ {2, 0, 2},
+ {0, 0, 0},
+ {1, 0, 0},
+ {0, 0, 2}
+ };
+ int available[NUM_OF_RESOURCES] = {0, 0, 0};
+ detectDeadlock(allocation, request, available);
+ return 0;
+}
+
+Assignment: Placement Strategies
+
+Implement the following placement Strategies
+1. Best Fit
+2. First Fit
+3. Next Fit
+4. Worst Fit
+Program:
+#include <stdio.h>
+#include <stdbool.h>
+#include <limits.h>
+#define MAX_BLOCKS 100
+struct MemoryBlock {
+ int id;
+ int size;
+ bool allocated;
+};
+struct Memory {
+ struct MemoryBlock memoryBlocks[MAX_BLOCKS];
+ int numBlocks;
+};
+void addBlock(struct Memory *memory, int id, int size) {
+ memory->memoryBlocks[memory->numBlocks].id = id;
+ memory->memoryBlocks[memory->numBlocks].size = size;
+ memory->memoryBlocks[memory->numBlocks].allocated = false;
+ memory->numBlocks++;
+}
+void bestFit(struct Memory *memory, int processId, int size) {
+ int bestFitIndex = -1;
+ int minFragmentation = __INT_MAX__;
+ for (int i = 0; i < memory->numBlocks; i++) {
+ struct MemoryBlock *block = &memory->memoryBlocks[i];
+ if (!block->allocated && block->size >= size && block->size - size <
+minFragmentation) {
+ bestFitIndex = i;
+ minFragmentation = block->size - size;
+ }
+ }
+ if (bestFitIndex != -1) {
+ struct MemoryBlock *block = &memory->memoryBlocks[bestFitIndex];
+ block->allocated = true;
+ printf("Process %d allocated to block %d\n", processId, block->id);
+ } else {
+ printf("Process %d cannot be allocated\n", processId);
+ }
+}
+void firstFit(struct Memory *memory, int processId, int size) {
+ for (int i = 0; i < memory->numBlocks; i++) {
+ struct MemoryBlock *block = &memory->memoryBlocks[i];
+ if (!block->allocated && block->size >= size) {
+ block->allocated = true;
+ printf("Process %d allocated to block %d\n", processId, block->id);
+ return;
+ }
+ }
+ printf("Process %d cannot be allocated\n", processId);
+}
+int nextFit(struct Memory *memory, int processId, int size, int
+lastAllocatedIndex) {
+ for (int i = lastAllocatedIndex; i < memory->numBlocks; i++) {
+ struct MemoryBlock *block = &memory->memoryBlocks[i];
+ if (!block->allocated && block->size >= size) {
+ block->allocated = true;
+ printf("Process %d allocated to block %d\n", processId, block->id);
+ return i + 1;
+ }
+ }
+ for (int i = 0; i < lastAllocatedIndex; i++) {
+ struct MemoryBlock *block = &memory->memoryBlocks[i];
+ if (!block->allocated && block->size >= size) {
+ block->allocated = true;
+ printf("Process %d allocated to block %d\n", processId, block->id);
+ return i + 1;
+ }
+ }
+ printf("Process %d cannot be allocated\n", processId);
+ return 0;
+}
+void worstFit(struct Memory *memory, int processId, int size) {
+ int worstFitIndex = -1;
+ int maxFragmentation = INT_MIN;
+ for (int i = 0; i < memory->numBlocks; i++) {
+ struct MemoryBlock *block = &memory->memoryBlocks[i];
+ if (!block->allocated && block->size >= size && block->size - size >
+maxFragmentation) {
+ worstFitIndex = i;
+ maxFragmentation = block->size - size;
+ }
+ }
+ if (worstFitIndex != -1) {
+ struct MemoryBlock *block = &memory->memoryBlocks[worstFitIndex];
+ block->allocated = true;
+ printf("Process %d allocated to block %d\n", processId, block->id);
+ } else {
+ printf("Process %d cannot be allocated\n", processId);
+ }
+}
+void resetMemory(struct Memory *memory) {
+ for (int i = 0; i < memory->numBlocks; i++) {
+ memory->memoryBlocks[i].allocated = false;
+ }
+}
+int main() {
+ struct Memory memory;
+ memory.numBlocks = 0;
+ // Adding memory blocks
+ addBlock(&memory, 1, 100);
+ addBlock(&memory, 2, 50);
+ addBlock(&memory, 3, 200);
+ addBlock(&memory, 4, 150);
+ // Best Fit
+ printf("Best Fit Allocation:\n");
+ bestFit(&memory, 1, 70);
+ bestFit(&memory, 2, 100);
+ bestFit(&memory, 3, 80);
+ // Reset memory allocation
+ resetMemory(&memory);
+ // First Fit
+ printf("\nFirst Fit Allocation:\n");
+ firstFit(&memory, 1, 70);
+ firstFit(&memory, 2, 100);
+ firstFit(&memory, 3, 80);
+ // Reset memory allocation
+ resetMemory(&memory);
+ // Next Fit
+ printf("\nNext Fit Allocation:\n");
+ int lastAllocatedIndex = 0;
+ lastAllocatedIndex = nextFit(&memory, 1, 70, lastAllocatedIndex);
+ lastAllocatedIndex = nextFit(&memory, 2, 100, lastAllocatedIndex);
+ lastAllocatedIndex = nextFit(&memory, 3, 80, lastAllocatedIndex);
+ // Reset memory allocation
+ resetMemory(&memory);
+ // Worst Fit
+ printf("\nWorst Fit Allocation:\n");
+ worstFit(&memory, 1, 70);
+ worstFit(&memory, 2, 100);
+ worstFit(&memory, 3, 80);
+ return 0;
+}
+Assignment: Address Translation
+
+Write a C/C++ program to convert given virtual/ logical address in
+physical address using segmentation and paging
+Program:
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#define SEGMENT_SIZE 256 // Size of each segment
+#define PAGE_SIZE 256 // Size of each page
+// Segment Table Entry
+typedef struct {
+int segmentNumber;
+int baseAddress;
+int limit;
+} SegmentTableEntry;
+// Page Table Entry
+typedef struct {
+int pageNumber;
+int frameNumber;
+} PageTableEntry;
+int translateAddressSegmentation(int logicalAddress, SegmentTableEntry
+segmentTable[], int segmentCount) {
+ int offset = logicalAddress ;// Calculate offset
+ for (int i = 0; i < segmentCount; i++) {
+ if (logicalAddress >= segmentTable[i].baseAddress && logicalAddress <
+segmentTable[i].baseAddress + segmentTable[i].limit) {
+ int physicalAddress = segmentTable[i].baseAddress + offset;
+ return physicalAddress;
+ }
+ }
+ printf("Segmentation Fault: Logical Address does not belong to any
+segment\n");
+ return -1;
+}
+int translateAddressPaging(int logicalAddress, PageTableEntry pageTable[], int
+pageCount) {
+int pageNumber = logicalAddress / PAGE_SIZE; // Calculate page number
+int offset = logicalAddress % PAGE_SIZE; // Calculate offset
+if (pageNumber < pageCount) {
+int frameNumber = pageTable[pageNumber].frameNumber;
+int physicalAddress = (frameNumber * PAGE_SIZE) + offset;
+return physicalAddress;
+} else {
+printf("Page Fault: Page number exceeds page count\n");
+return -1;
+}
+}
+int main() {
+// Segment Table
+SegmentTableEntry segmentTable[4] = {
+{0, 0, 255}, // Segment 0
+{1, 256, 255}, // Segment 1
+{2, 512, 255}, // Segment 2
+{3, 767, 255} // Segment 3
+};
+// Page Table
+PageTableEntry pageTable[4] = {
+{0, 2}, // Page 0
+{1, 3}, // Page 1
+{2, 1}, // Page 2
+{3, 0} // Page 3
+};
+int logicalAddress = 262;
+ printf("Logical Address is : %d\n",logicalAddress);
+int physicalAddressSegmentation =
+translateAddressSegmentation(logicalAddress, segmentTable, 4);
+if (physicalAddressSegmentation != -1) {
+printf("Physical Address (using Segmentation): %d\n",
+physicalAddressSegmentation);
+}
+int physicalAddressPaging = translateAddressPaging(logicalAddress,
+pageTable, 4);
+if (physicalAddressPaging != -1) {
+printf("Physical Address (using Paging): %d\n", physicalAddressPaging);
+}
+return 0;
+}
+
+Assignment: Page replacement algorithms
+
+#include <stdio.h>
+#include <stdbool.h>
+
+//int nextUse()
+int findLRU(int time[], int n) {
+    int minimum = time[0], pos = 0;
+    for (int i = 1; i < n; ++i) {
+        if (time[i] < minimum) {
+            minimum = time[i];
+            pos = i;
+        }
+    }
+    return pos;
+}
+int findOptimal(int reference[], int arr[], int pages, int currentIndex, int frames) {
+    int pos = -1, farthest = currentIndex;
+    for (int i = 0; i < frames; ++i) {
+        int j;
+        for (j = currentIndex; j < pages; ++j) {
+            if (arr[i] == reference[j]) {
+                if (j > farthest) {
+                    farthest = j;
+                    pos = i;
+                }
+                break;
+            }
+        }
+        if (j == pages) {
+            return i;
+        }
+    }
+    return (pos == -1) ? 0 : pos;
+}
+
+int main()
+{
+    int frames;
+    printf("Enter the number of frames: ");
+    scanf("%d",&frames);
+
+    int arr[frames];
+    for(int i = 0 ; i < frames ; i++)
+    {
+        arr[i] = -1;
+    }
+    int pages;
+
+    printf("\nEnter the number of pages: ");
+    scanf("%d",&pages);
+
+    int reference[pages];
+    printf("\nEnter the page reference string");
+    for(int i = 0 ; i < pages ; i++)
+    {
+        scanf("%d",&reference[i]);
+    }
+
+    printf("\nFIFO: \n");
+    int totalPageFaults = 0;
+    bool isAlloted;
+    for(int i = 0 ; i < pages ; i++)
+    {
+
+        isAlloted = false;
+        for(int k = 0 ; k < frames ; k++ )
+        {
+            if(arr[k] == reference[i])
+                isAlloted = true;
+
+        }
+
+        if(isAlloted)
+        {
+
+            printf("Frame: ");
+            for(int k = 0 ; k < frames ; k++)
+                printf("%d ",arr[k]);
+                printf("\n");
+            continue;
+
+        }
+
+        else
+        {
+            for(int x = 0 ; x < frames - 1 ; x++)
+            {
+                arr[x] = arr[x+1];
+            }
+            arr[frames - 1] = reference[i];
+            totalPageFaults++;
+            printf("Frame: ");
+            for(int k = 0 ; k < frames ; k++)
+                printf("%d ",arr[k]);
+                printf("\n");
+        }
+
+
+        }
+        printf("Total page faults is: %d",totalPageFaults);
+
+    int time[frames];
+    int counter = 0;
+    totalPageFaults = 0;
+
+    for (int i = 0; i < frames; ++i) {
+        arr[i] = -1;
+    }
+
+    printf("\nLRU: \n");
+
+    for (int i = 0; i < pages; ++i) {
+        isAlloted = false;
+
+        for (int k = 0; k < frames; ++k) {
+            if (arr[k] == reference[i])
+            {
+                counter++;
+                time[k] = counter;
+                isAlloted = true;
+                break;
+            }
+        }
+
+        if (isAlloted) {
+            printf("Frame: ");
+            for (int k = 0; k < frames; ++k)
+                printf("%d ", arr[k]);
+            printf("\n");
+            continue;
+        }
+
+        for (int k = 0; k < frames; ++k) {
+            if (arr[k] == -1) {
+                counter++;
+                totalPageFaults++;
+                arr[k] = reference[i];
+                time[k] = counter;
+                isAlloted = true;
+                break;
+            }
+        }
+
+        if (!isAlloted) {
+            int pos = findLRU(time, frames);
+            counter++;
+            totalPageFaults++;
+            arr[pos] = reference[i];
+            time[pos] = counter;
+        }
+
+        printf("Frame: ");
+        for (int k = 0; k < frames; ++k)
+            printf("%d ", arr[k]);
+        printf("\n");
+    }
+
+    printf("Total page faults: %d\n", totalPageFaults);
+
+    totalPageFaults = 0;
+
+    for (int i = 0; i < frames; ++i) {
+        arr[i] = -1;
+    }
+
+    printf("\nOPTIMAL: \n");
+
+    for (int i = 0; i < pages; ++i) {
+        isAlloted = false;
+
+        for (int k = 0; k < frames; ++k) {
+            if (arr[k] == reference[i]) {
+                isAlloted = true;
+                break;
+            }
+        }
+
+        if (isAlloted) {
+            printf("Frame: ");
+            for (int k = 0; k < frames; ++k)
+                printf("%d ", arr[k]);
+            printf("\n");
+            continue;
+        }
+
+        for (int k = 0; k < frames; ++k) {
+            if (arr[k] == -1) {
+                totalPageFaults++;
+                arr[k] = reference[i];
+                isAlloted = true;
+                break;
+            }
+        }
+
+        if (!isAlloted) {
+            int pos = findOptimal(reference, arr, pages, i + 1, frames);
+            totalPageFaults++;
+            arr[pos] = reference[i];
+        }
+
+        printf("Frame: ");
+        for (int k = 0; k < frames; ++k)
+            printf("%d ", arr[k]);
+        printf("\n");
+    }
+
+    printf("Total page faults: %d\n", totalPageFaults);
+    return 0;
+}
+
+Assignment : Disk Scheduling algorithms
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// FCFS Disk Scheduling Algorithm
+int fcfs(int cylinders, int head, int requests, int request_queue[]) {
+    int seek = 0;
+    int time = 0;
+
+    printf("Head movements: ");
+    for (int i = 0; i < requests; i++) {
+        time = abs(request_queue[i] - head);
+        printf("%d -> ", head);
+        head = request_queue[i];
+        seek += time;
+    }
+    printf("%d\n", head);
+
+    return seek;
+}
+
+// SSTF Disk Scheduling Algorithm
+int sstf(int cylinders, int head, int requests, int request_queue[]) {
+    int seek = 0;
+    int nearest;
+    int time = 0;
+
+    int visited[requests];
+    for (int i = 0; i < requests; i++)
+        visited[i] = 0;
+
+    printf("Head movements: ");
+    for (int i = 0; i < requests; i++) {
+        nearest = -1;
+        for (int j = 0; j < requests; j++) {
+            if (!visited[j]) {
+                if (nearest == -1 || abs(request_queue[j] - head) < abs(request_queue[nearest] - head)) {
+                    nearest = j;
+                }
+            }
+        }
+        if (nearest != -1) {
+            time = abs(request_queue[nearest] - head);
+            printf("%d -> ", head);
+            head = request_queue[nearest];
+            visited[nearest] = 1;
+            seek += time;
+        }
+    }
+    printf("%d\n", head);
+
+    return seek;
+}
+// Helper function to sort request array
+void sort_requests(int request_queue[], int requests) {
+    for (int i = 0; i < requests - 1; i++) {
+        for (int j = 0; j < requests - i - 1; j++) {
+            if (request_queue[j] > request_queue[j + 1]) {
+                int temp = request_queue[j];
+                request_queue[j] = request_queue[j + 1];
+                request_queue[j + 1] = temp;
+            }
+        }
+    }
+}
+
+// SCAN Disk Scheduling Algorithm
+int scan(int cylinders, int head, int requests, int request_queue[]) {
+    int seek = 0;
+    int time = 0;
+
+    int visited[requests];
+
+    for(int i = 0 ; i  <requests ; i++)
+        visited[i] = 0;
+    // Sort the request queue
+    sort_requests(request_queue, requests);
+
+    printf("Head movements: ");
+
+    // Moving towards the end
+    for (int i = 0; i < requests; i++) {
+        if (request_queue[i] >= head && visited[i] == 0) {
+            time = abs(request_queue[i] - head);
+            printf("%d -> ", head);
+            head = request_queue[i];
+            seek += time;
+            visited[i] = 1;
+        }
+    }
+
+    // Reach the end of the disk if necessary
+    if (head != cylinders - 1) {
+        time = abs((cylinders - 1) - head);
+        printf("%d -> ", head);
+        head = cylinders - 1;
+        seek += time;
+    }
+
+    // Moving towards the end
+    for (int i = requests - 1; i >= 0; i--) {
+        if (request_queue[i] < head && visited[i] == 0) {
+            time = abs(request_queue[i] - head);
+            printf("%d -> ", head);
+            head = request_queue[i];
+            seek += time;
+            visited[i] = 1;
+        }
+    }
+
+    printf("%d\n", head);
+    return seek;
+}
+
+// C-SCAN Disk Scheduling Algorithm
+int c_scan(int cylinders, int head, int requests, int request_queue[]) {
+    int seek = 0;
+    int time = 0;
+
+    int visited[requests];
+
+    for(int i = 0 ; i  <requests ; i++)
+        visited[i] = 0;
+    // Sort the request queue
+    sort_requests(request_queue, requests);
+
+    printf("Head movements: ");
+
+    // Moving towards the end
+    for (int i = 0; i < requests; i++) {
+        if (request_queue[i] >= head && visited[i] == 0 ) {
+            time = abs(request_queue[i] - head);
+            printf("%d -> ", head);
+            head = request_queue[i];
+            seek += time;
+            visited[i] =1;
+        }
+    }
+
+    // Reach the end of the disk if necessary
+    if (head != cylinders - 1) {
+        time = abs((cylinders - 1) - head);
+        printf("%d -> ", head);
+        head = cylinders - 1;
+        seek += time;
+    }
+
+    // Jump to the start of the disk
+    time = head;
+    printf("%d -> ", head);
+    head = 0;
+    seek += time;
+
+    // Moving towards the end again
+    for (int i = 0; i < requests; i++) {
+        if (request_queue[i] >= head && visited[i] == 0) {
+            time = abs(request_queue[i] - head);
+            printf("%d -> ", head);
+            head = request_queue[i];
+            seek += time;
+            visited[i] = 1;
+        }
+    }
+
+    printf("%d\n", head);
+    return seek;
+}
+int main() {
+    int cylinders, head, requests;
+
+    printf("Enter the number of cylinders, head position, and number of requests: ");
+    scanf("%d %d %d", &cylinders, &head, &requests);
+
+    int request_queue[requests];
+    printf("Enter the request queue: ");
+    for (int i = 0; i < requests; i++)
+        scanf("%d", &request_queue[i]);
+
+    printf("\nFCFS Scan:\n");
+    int seek = fcfs(cylinders, head, requests, request_queue);
+    printf("Total seek time: %d\n", seek);
+
+    printf("\nSSTF Scan:\n");
+    seek = sstf(cylinders, head, requests, request_queue);
+    printf("Total seek time: %d\n", seek);
+
+    printf("\nSCAN Scan:\n");
+    seek = scan(cylinders, head, requests, request_queue);
+    printf("Total seek time: %d\n", seek);
+
+    printf("\nC-SCAN Scan:\n");
+    seek = c_scan(cylinders, head, requests, request_queue);
+    printf("Total seek time: %d\n", seek);
+    return 0;
+}
+
+Course Project: Phase 1
+
+Implement Phase 1 of Multiprogramming Operating System Simulation
+Program:
+package phase1;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Arrays;
+public class OS {
+// registers of the virtual machine
+private char[] IR;
+private char[] R;
+private int SI;
+private int IC;
+private boolean C;
+// Memory of the Virtual machine
+private char[][] M;
+// reader and writer for I/O operations
+BufferedReader reader;
+PrintWriter writer;
+// Buffer between memory and IO
+private char[] buffer;
+// Constructor of the OS
+public OS() throws IOException {
+// initializing the registers
+IR = new char[4];
+R = new char[4];
+IC = 0;
+SI = 0;
+C = false;
+// initialize memory
+M = new char[100][4];
+// initialize the IO workers
+buffer = new char[40];
+reader = new BufferedReader(new
+FileReader("C:\\Users\\piyus\\Desktop\\OS\\input.txt"));
+File file = new File("C:\\Users\\piyus\\Desktop\\OS\\output.txt");
+writer = new PrintWriter(file);
+}
+// Function to initialize the registers and memory
+public void initialize() throws IOException {
+for (int i = 0; i < 100; i++) {
+for (int j = 0; j < 4; j++) {
+M[i][j] = ' ';
+}
+}
+for(int i = 0; i<4; i++) {
+IR[i] = ' ';
+R[i] = ' ';
+}
+IC = 0;
+SI = 0;
+C = false;
+for (int j = 0; j < 40; j++) {
+buffer[j] = ' ';
+}
+}
+// Function to load the program and data cards
+public void load() throws IOException {
+String line = null;
+int block = 0;
+while((line = reader.readLine()) != null) {
+for (int j = 0; j < 40; j++) {
+buffer[j] = ' ';
+}
+for(int i = 0; i < line.length(); i++) {
+buffer[i] = line.charAt(i);
+}
+if(buffer[0] == '$' && buffer[1] == 'A' && buffer[2] == 'M' &&
+buffer[3] == 'J') {
+initialize();;
+}else if(buffer[0] == '$' && buffer[1] == 'D' && buffer[2] == 'T'
+&& buffer[3] == 'A') {
+startExecution();
+}else if(buffer[0] == '$' && buffer[1] == 'E' && buffer[2] == 'N'
+&& buffer[3] == 'D') {
+break;
+}else {
+int k = 0;
+if(block == 100) {
+// Memory exceeded
+System.out.println("Memory exceeded. Aborting.");
+break;
+}
+for(; block < 100; block++) {
+if (k == 40 || buffer[k] == '\0' || buffer[k] == '\n') {
+break;
+}
+for(int j = 0; j<4; j++) {
+if (k == 40 || buffer[k] == '\0' || buffer[k] == '\n')
+{
+break;
+}
+if(buffer[k] == 'H') {
+M[block][j] = buffer[k++];
+break;
+}
+M[block][j] = buffer[k];
+k++;
+}
+if (k == 40 || buffer[k] == '\0' || buffer[k] == '\n') {
+break;
+}
+}
+}
+}
+}
+// Start the execution of the program
+private void startExecution() throws IOException {
+IC = 00;
+executeUserProgram();
+}
+// execute the user program
+private void executeUserProgram() throws IOException {
+while(true) {
+IR = M[IC++];
+System.err.println(Arrays.toString(IR));
+if(IR[0] == 'G' && IR[1] == 'D') {
+SI = 1;
+MOS();
+}else if(IR[0] == 'P' && IR[1] == 'D') {
+SI = 2;
+MOS();
+}else if(IR[0] == 'H') {
+SI = 3;
+MOS();
+break;
+}else if(IR[0] == 'L' && IR[1] == 'R') {
+loadRegister();
+}else if(IR[0] == 'S' && IR[1] == 'R') {
+storeRegister();
+}else if(IR[0] == 'C' && IR[1] == 'R') {
+compareRegister();
+}else if(IR[0] == 'B' && IR[1] == 'T') {
+branchTo();
+}else {
+System.err.print("Invalid Opcode : "+
+Character.toString(IR[0]) + Character.toString(IR[1]));
+break;
+}
+}
+}
+// function to handle the read interrupt
+private void read() throws IOException {
+// Clear the buffer
+for (int i = 0; i < 40; i++) {
+buffer[i] = ' ';
+}
+int k = 0;
+String line;
+int block = Character.getNumericValue(IR[2])*10;
+if((line = reader.readLine()) != null) {
+if(line.contains("$END")) {
+System.err.println("OUT OF DATA !!!");
+}else {
+for(int i=0; i<line.length(); i++) {
+buffer[i] = line.charAt(i);
+}
+for(int i = 0; i<10; i++) {
+for(int j = 0; j<4; j++) {
+if(k < 40) {
+M[block][j] = buffer[k];
+k++;
+}
+}
+block++;
+}
+}
+}else {
+System.err.println("End of the input file reached !!!");
+}
+}
+// function to handle the write interrupt
+private void write() {
+// Clear the buffer
+for (int i = 0; i < 40; i++) {
+buffer[i] = ' ';
+}
+int k = 0;
+int block = Character.getNumericValue(IR[2]);
+block *= 10;
+for(int i = 0; i<10; i++) {
+for(int j = 0; j<4; j++) {
+if(k < 40) {
+buffer[k] = M[block][j];
+k++;
+}
+}
+block++;
+}
+writer.print(new String(buffer));
+writer.println();
+writer.flush();
+}
+// function to handle the terminate interrupt
+private void terminate() {
+writer.println();
+writer.println();
+writer.flush();
+writer.close();
+}
+// Store the register into memory
+private void storeRegister() {
+int block = Character.getNumericValue(IR[2]) * 10 +
+Character.getNumericValue(IR[3]);
+for(int i = 0; i<4; i++) {
+M[block][i] = R[i];
+}
+}
+// Load the memory
+private void loadRegister() {
+int block = Character.getNumericValue(IR[2]) * 10 +
+Character.getNumericValue(IR[3]);
+for(int i = 0; i<4; i++) {
+R[i] = M[block][i];
+}
+}
+// Compare the register with the memory
+private void compareRegister() {
+int block = Character.getNumericValue(IR[2]) * 10 +
+Character.getNumericValue(IR[3]);
+char temp[] = new char[4];
+for(int i = 0; i<4; i++) {
+temp[i] = M[block][i];
+}
+C = Arrays.equals(temp, R);
+}
+// Branch to give instruction
+private void branchTo(){
+System.err.println("Reach here!");
+if(C) {
+int block = Character.getNumericValue(IR[2])*10 +
+Character.getNumericValue(IR[3]);
+IC = block;
+System.err.println(block);
+}
+}
+// Master Operating System
+private void MOS() throws IOException {
+if(SI == 1) {
+read();
+}else if(SI == 2) {
+write();
+}else if(SI == 3) {
+terminate();
+}else {
+System.err.println("Inavlid Interrupt !!!");
+}
+}
+public void displayMemory() {
+for (int block = 0; block < 100; block++) {
+System.out.print("Block " + block + ": ");
+for (int word = 0; word < 4; word++) {
+char asciiChar = M[block][word];
+String asciiString = Character.toString(asciiChar);
+System.out.print(asciiString + " ");
+}
+System.out.println();
+}
+System.out.print("R : ");
+for(int i = 0; i<4; i++) {
+char asciiChar = R[i];
+String asciiString = Character.toString(asciiChar);
+System.out.print(asciiString+" ");
+}
+System.out.println();
+System.out.println("C : "+C);
+}
+public static void main(String[] args) throws IOException {
+OS os = new OS();
+os.load();
+os.displayMemory();
+}
+}
+Output:
+input.txt
+$AMJ000100030001
+GD20PD20H
+$DTA
+HelloWorld
+$END0001
+
+Course Project: Phase 2
+
+Implement Phase 2 of Multiprogramming Operating System Simulation
+Program:
+package phase2;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Arrays;
+import java.util.Random;
+class PCB{
+int jobId;
+int TTL;
+int TLL;
+int LLC;
+int TTC;
+public PCB() {
+// Default constructor
+}
+public PCB(int jobId, int TTL, int TLL) {
+this.jobId = jobId;
+this.TTL = TTL;
+this.TLL = TLL;
+LLC = 0;
+TTC = 0;
+}
+}
+public class OSv2 {
+// registers of the virtual machine
+private char[] IR;
+private char[] R;
+private int SI;
+private int IC;
+private boolean C;
+private int PTR;
+private int TI;
+private int PI;
+private PCB pcb;
+private boolean[] isAllocated;
+// Memory of the Virtual machine
+private char[][] M;
+// reader and writer for I/O operations
+BufferedReader reader;
+PrintWriter writer;
+// Buffer between memory and IO
+private char[] buffer;
+// Auxiliary variables
+private int pageCounter;
+private boolean isTerminated;
+// Constructor of the OS
+public OSv2() throws IOException {
+// initializing the registers
+IR = new char[4];
+R = new char[4];
+IC = 0;
+SI = 0;
+TI = 0;
+PI = 0;
+C = false;
+// Map to keep track of allocated pages
+isAllocated = new boolean[30];
+// initialize memory
+M = new char[300][4];
+// initialize the IO workers
+ buffer = new char[40];
+reader = new BufferedReader(new
+FileReader("C:\\Users\\piyus\\Desktop\\OS\\input.txt"));
+File file = new
+File("C:\\Users\\piyus\\Desktop\\OS\\output.txt");
+writer = new PrintWriter(file);
+}
+// Function to initialize the registers and memory
+public void initialize(int pageNumber) throws IOException {
+for (int i = 0; i < 300; i++) {
+ for (int j = 0; j < 4; j++) {
+ M[i][j] = ' ';
+ }
+ }
+ for(int i = 0; i<4; i++) {
+ IR[i] = ' ';
+ R[i] = ' ';
+ }
+
+ IC = 0;
+ SI = 0;
+ TI = 0;
+ PI = 0;
+ C = false;
+ pcb = new PCB();
+ pageCounter = 0;
+ isTerminated = false;
+
+ isAllocated[pageNumber] = true;
+
+ for (int j = 0; j < 40; j++) {
+ buffer[j] = ' ';
+ }
+}
+// Function to allocate a random page from available pages
+private int allocatePage() {
+Random random = new Random();
+int pageNumber = random.nextInt(30);
+while(isAllocated[pageNumber]) {
+pageNumber = random.nextInt(30);
+}
+isAllocated[pageNumber] = true;
+return pageNumber;
+}
+// Function to map a virtual address to corresponding physical
+address
+int mapAddress(int virtualAddress) throws IOException {
+
+ // Check for operand error
+ if (virtualAddress < 0 || virtualAddress > 99) {
+ this.SI = 0;
+ this.PI = 2;
+ this.TI = 0;
+ MOS();
+ }
+ int pageTableEntry = PTR + (virtualAddress / 10);
+
+ int M_of_PTE = (M[pageTableEntry][2] - '0') * 10 +
+(M[pageTableEntry][3] - '0');
+
+ int physicalAddress = M_of_PTE * 10 + (virtualAddress % 10);
+
+ if (physicalAddress < 0 || physicalAddress > 299) {
+ this.PI = 3;
+ this.TI = 0;
+ this.SI = 0;
+ return -1;
+ }
+
+ return physicalAddress;
+}
+// Function to load the program and data cards
+public void load() throws IOException {
+String line = null;
+while((line = reader.readLine()) != null) {
+for (int j = 0; j < 40; j++) {
+ buffer[j] = ' ';
+ }
+for(int i = 0; i < line.length(); i++) {
+buffer[i] = line.charAt(i);
+}
+if(buffer[0] == '$' && buffer[1] == 'A' && buffer[2]
+== 'M' && buffer[3] == 'J') {
+int pageNumber = allocatePage();
+int jobId =
+Character.getNumericValue(buffer[4]) * 1000 +
+Character.getNumericValue(buffer[5]) * 100 +
+Character.getNumericValue(buffer[6]) * 10 +
+Character.getNumericValue(buffer[7]);
+int TTL =
+Character.getNumericValue(buffer[8]) * 1000 +
+Character.getNumericValue(buffer[9]) * 100 +
+Character.getNumericValue(buffer[10]) * 10 +
+Character.getNumericValue(buffer[11]);
+int TLL =
+Character.getNumericValue(buffer[12]) * 1000 +
+Character.getNumericValue(buffer[13]) * 100 +
+Character.getNumericValue(buffer[14]) * 10 +
+Character.getNumericValue(buffer[15]);
+this.pcb = new PCB(jobId, TTL, TLL);
+this.PTR = pageNumber * 10;
+initialize(pageNumber);
+this.pcb = new PCB(jobId, TTL, TLL);
+for(int i = 0; i < 10; i++) {
+for(int j = 0; j < 4; j++) {
+M[PTR + i][j] = '*';
+}
+}
+}else if(buffer[0] == '$' && buffer[1] == 'D' &&
+buffer[2] == 'T' && buffer[3] == 'A') {
+startExecution();
+}else if(buffer[0] == '$' && buffer[1] == 'E' &&
+buffer[2] == 'N' && buffer[3] == 'D') {
+continue;
+}else {
+int page = allocatePage();
+M[PTR+pageCounter][2] = (char) ((page / 10)
++ '0');
+M[PTR+pageCounter][3] = (char) ((page % 10)
++ '0');
+pageCounter +=1;
+page *= 10;
+int k = 0;
+for(int i = 0; i < 10; i++) {
+for(int j = 0; j<4; j++) {
+if(buffer[k] == 'H') {
+M[page + i][j] =
+buffer[k++];
+break;
+}
+M[page + i][j] = buffer[k++];
+}
+}
+}
+}
+writer.close();
+}
+// Start the execution of the program
+private void startExecution() throws IOException {
+IC = 00;
+executeUserProgram();
+}
+// execute the user program
+private void executeUserProgram() throws IOException {
+isTerminated = false;
+while(!isTerminated) {
+int physicalAddress = mapAddress(IC);
+IR = M[physicalAddress];
+IC++;
+if(IR[0] == 'G' && IR[1] == 'D') {
+int operand =
+Character.getNumericValue(IR[2])*10 + Character.getNumericValue(IR[3]);
+int realOperand = mapAddress(operand);
+if(realOperand == -1) {
+this.pcb.TTC++;
+PI = 3;
+SI = 0;
+TI = 0;
+MOS();
+continue;
+}
+SI = 1;
+TI = 0;
+PI = 0;
+MOS();
+}else if(IR[0] == 'P' && IR[1] == 'D') {
+SI = 2;
+PI = 0;
+MOS();
+}else if(IR[0] == 'H') {
+this.pcb.TTC++;
+SI = 3;
+PI = 0;
+TI = 0;
+MOS();
+break;
+}else if(IR[0] == 'L' && IR[1] == 'R') {
+loadRegister();
+}else if(IR[0] == 'S' && IR[1] == 'R') {
+int operand =
+Character.getNumericValue(IR[2])*10 + Character.getNumericValue(IR[3]);
+int realOperand = mapAddress(operand);
+if(realOperand == -1) {
+this.pcb.TTC++;
+PI = 3;
+SI = 0;
+TI = 0;
+MOS();
+continue;
+}
+storeRegister();
+}else if(IR[0] == 'C' && IR[1] == 'R') {
+compareRegister();
+}else if(IR[0] == 'B' && IR[1] == 'T') {
+branchTo();
+}else {
+PI = 1;
+TI = 0;
+MOS();
+break;
+}
+this.pcb.TTC++;
+if(pcb.TTC == pcb.TTL) {
+SI = 1;
+TI = 2;
+MOS();
+}
+if (isTerminated) {
+ break;
+ }
+}
+}
+// function to handle the read interrupt
+private void read() throws IOException {
+// Clear the buffer
+for (int i = 0; i < 40; i++) {
+ buffer[i] = ' ';
+ }
+int k = 0;
+String line;
+if((line = reader.readLine()) != null) {
+for(int i=0; i<line.length(); i++) {
+buffer[i] = line.charAt(i);
+}
+if(line.contains("$END") || (buffer[0] == '$' &&
+buffer[1] == 'E' && buffer[2] == 'N' && buffer[3] == 'D')) {
+terminate(1);
+}else {
+int virtualAddress =
+Character.getNumericValue(IR[2])*10 + Character.getNumericValue(IR[3]);
+int physicalAddress =
+mapAddress(virtualAddress);
+for(int i = 0; i<10; i++) {
+for(int j = 0; j<4; j++) {
+if(k < 40) {
+M[physicalAddress + i][j] =
+buffer[k];
+k++;
+}
+}
+}
+}
+}else {
+System.err.println("End of the input file reached !!!");
+}
+}
+// function to handle the write interrupt
+private void write() throws IOException {
+this.pcb.LLC++;
+if(this.pcb.LLC > this.pcb.TLL) {
+terminate(2);
+}else {
+// Clear the buffer
+for (int i = 0; i < 40; i++) {
+buffer[i] = ' ';
+}
+int k = 0;
+int virtualAddress =
+Character.getNumericValue(IR[2])*10 + Character.getNumericValue(IR[3]);
+int physicalAddress = mapAddress(virtualAddress);
+if(physicalAddress == -1) {
+PI = 3;
+SI = 0;
+TI = 0;
+MOS();
+return;
+}
+for(int i = 0; i<10; i++) {
+for(int j = 0; j<4; j++) {
+if(k < 40) {
+buffer[k] = M[physicalAddress +
+i][j];
+k++;
+}
+}
+}
+writer.println(new String(buffer));
+writer.flush();
+}
+}
+// function to handle the terminate interrupt
+private void terminate(int... EM) {
+ for(int i : EM) {
+ String message = "Program exited with : ";
+ if(i == 0) {
+ message += "NO ERRORS ";
+ isTerminated = true;
+ }else if(i == 1) {
+ message += "OUT OF DATA ERROR ";
+ isTerminated = true;
+ }else if(i == 2) {
+ message += "LINE LIMIT EXCEEDED ERROR ";
+ isTerminated = true;
+ }else if(i == 3) {
+ message += "TIME LIMIT EXCEEDED ERROR ";
+ isTerminated = true;
+ }else if(i == 4) {
+ message += "OPERATION CODE ERROR ";
+ isTerminated = true;
+ }else if(i == 5) {
+ message += "OPERAND ERROR ";
+ isTerminated = true;
+ }else if(i == 6) {
+ message += "INVALID PAGE FAULT ERROR ";
+ isTerminated = true;
+ }
+ writer.println(message);
+ }
+ writer.println("Job Id\t:\t"+this.pcb.jobId);
+ writer.println("IC\t:\t"+this.IC);
+ writer.println("IR\t:\t"+Arrays.toString(this.IR));
+ writer.println("TTC\t:\t"+this.pcb.TTC);
+ writer.println("LLC\t:\t"+this.pcb.LLC);
+ writer.println();
+ writer.println();
+ writer.flush();
+}
+// Store the register into memory
+private void storeRegister() throws IOException{
+int virtualAddress = Character.getNumericValue(IR[2])*10
++ Character.getNumericValue(IR[3]);
+int operand = mapAddress(virtualAddress);
+for(int i = 0; i<4; i++) {
+M[operand][i] = R[i];
+}
+}
+private void loadRegister() throws IOException {
+int virtualAddress = Character.getNumericValue(IR[2])*10
++ Character.getNumericValue(IR[3]);
+int operand = mapAddress(virtualAddress);
+if(operand == -1) {
+PI = 3;
+SI = 0;
+TI = 0;
+MOS();
+return;
+}
+for(int i = 0; i<4; i++) {
+R[i] = M[operand][i];
+}
+}
+private void compareRegister() throws IOException {
+char temp[] = new char[4];
+int virtualAddress = Character.getNumericValue(IR[2])*10
++ Character.getNumericValue(IR[3]);
+int operand = mapAddress(virtualAddress);
+if(operand == -1) {
+PI = 3;
+SI = 0;
+TI = 0;
+MOS();
+return;
+}
+for(int i = 0; i<4; i++) {
+temp[i] = M[operand][i];
+}
+C = Arrays.equals(temp, R);
+}
+// Branch to give instruction
+private void branchTo(){
+if(C) {
+int newIC = Character.getNumericValue(IR[2])*10 +
+Character.getNumericValue(IR[3]);
+IC = newIC;
+}
+}
+// Master Operating System
+private void MOS() throws IOException {
+// Software Interrupts
+if(TI == 0 && SI == 1) {
+// read the data
+read();
+}else if(TI == 0 && SI == 2) {
+// write the data
+write();
+}else if(TI == 0 && SI == 3) {
+// normal end of program
+terminate(0);
+}else if(TI == 2 && SI == 1){
+// time limit exceeded
+terminate(3);
+}else if(TI == 2 && SI == 2){
+// write and then terminated
+terminate(3);
+}else if(TI == 2 && SI == 3){
+terminate(0);
+}
+// Program interrupts
+if(TI == 0 && PI == 1) {
+// opcode error
+terminate(4);
+}else if(TI == 0 && PI == 2) {
+// operand error
+terminate(5);
+}else if(TI == 0 && PI == 3) {
+// page fault
+if((IR[0] == 'S' && IR[1] == 'R') || (IR[0] == 'G' &&
+IR[1] == 'D')) {
+int virtualAddress =
+Character.getNumericValue(IR[2])*10 + Character.getNumericValue(IR[3]);
+int pageTableEntry = PTR + (virtualAddress /
+10);
+int page = allocatePage();
+M[pageTableEntry][2] = (char) ((page / 10) +
+'0');
+M[pageTableEntry][3] = (char) ((page % 10) +
+'0');
+pageCounter += 1;
+IC--;
+}else{
+if (!isTerminated) {
+ terminate(6);
+ isTerminated = true;
+ }
+}
+}else if(TI == 2 && PI == 1) {
+terminate(3, 4);
+}else if(TI == 2 && PI == 2) {
+terminate(3, 5);
+}else if(TI == 3 && PI == 3) {
+terminate(3);
+}
+}
+public void displayMemory() {
+for (int block = 0; block < 300; block++) {
+ System.out.print("Block " + block + ": ");
+ for (int word = 0; word < 4; word++) {
+ char asciiChar = M[block][word];
+ String asciiString = Character.toString(asciiChar);
+ System.out.print(asciiString + " ");
+ }
+ System.out.println();
+ }
+ System.out.print("R : ");
+ for(int i = 0; i<4; i++) {
+ char asciiChar = R[i];
+ String asciiString = Character.toString(asciiChar);
+ System.out.print(asciiString+" ");
+ }
+
+ System.out.println();
+ System.out.println("C : "+C);
+ System.out.println("PTR : "+PTR);
+ System.out.println("Page Counter : "+pageCounter);
+ System.out.println(Arrays.toString(this.isAllocated));
+}
+public static void main(String[] args) throws IOException{
+OSv2 os = new OSv2();
+os.load();
+os.displayMemory();
+}
+}
+Output:
+input.txt
+$AMJ000100030001
+GD20PD20H
+$DTA
+HelloWorld
+$END0001
+
+Assignment: Shell script
+
+#!/bin/bash
+
+# Function to check Armstrong number
+isArmstrong() {
+    num=$1
+    sum=0
+    temp=$num
+    while [ $temp -gt 0 ]
+    do
+        digit=$((temp % 10))
+        sum=$((sum + digit * digit * digit))
+        temp=$((temp / 10))
+    done
+
+    if [ $num -eq $sum ]; then
+        echo "$num is an Armstrong number."
+    else
+        echo "$num is not an Armstrong number."
+    fi
+}
+
+# Main script
+
+# Test Armstrong number
+read -p "Enter a number to check if it's Armstrong: " armstrong_num
+isArmstrong $armstrong_num
+
+#!/bin/bash
+decimal_to_binary()
+{
+    local n=$1
+    bin_num=0
+    local i=1
+    
+    while [ $n -ne 0 ];
+    do
+        digit=$(($n%2))
+        bin_num=$(($bin_num + $digit*i))
+        n=$(($n/2))
+        i=$(($i*10))
+    done
+    echo $bin_num
+}
+
+binary_to_decimal()
+{
+    local n=$1
+    dec_num=0
+    i=0
+    while [ $n -ne 0 ];
+    do
+        digit=$(($n % 10))
+        dec_num=$(($dec_num + $digit * 2**i))
+        n=$(($n/10))
+        i=$(($i+1))
+
+    done
+    echo $dec_num
+}
+
+echo "Enter a binary number"
+read num1
+echo "Enter second binary number"
+read num2
+echo "Enter (+) for addition , (-) for subtraction , (x) for multiplication , (/) for division  , (%) for modulus"
+read char
+
+case $char in
+
+    "+") 
+    num1=$(binary_to_decimal $num1)
+    num2=$(binary_to_decimal $num2)
+    sum=$(($num1 + $num2))
+    sum=$(decimal_to_binary $sum) 
+    echo "Addition of the numbers is $sum"
+    ;;
+
+    "-") 
+    num1=$(binary_to_decimal $num1)
+    num2=$(binary_to_decimal $num2)
+    sub=$(($num1 - $num2))
+    sub=$(decimal_to_binary $sub) 
+    echo "Subtraction of the numbers is $sub"
+    ;;
+
+    "x") 
+    num1=$(binary_to_decimal $num1)
+    num2=$(binary_to_decimal $num2)
+    mul=$(($num1 * $num2))
+    mul=$(decimal_to_binary $mul) 
+    echo "Multiplication of the numbers is $mul"
+    ;;
+
+    "/") 
+    num1=$(binary_to_decimal $num1)
+    num2=$(binary_to_decimal $num2)
+    div=$(($num1 / $num2))
+    div=$(decimal_to_binary $div) 
+    echo "Division of the numbers is $div"
+    ;;
+
+    "%") 
+    num1=$(binary_to_decimal $num1)
+    num2=$(binary_to_decimal $num2)
+    mod=$(($num1 % $num2))
+    mod=$(decimal_to_binary $mod) 
+    echo "Modulus of the numbers is $mod"
+    ;;
+
+    "*") 
+    echo `exit 0`
+    ;;
+
+esac
+
+
+#!/bin/bash
+echo -n "Enter a character: "
+read -n 1 charget_data_type_size() {
+    case "$1" in
+        int)
+            echo " the size of integer : 4"
+            ;;
+        char)
+            echo "the size of character : 1"
+            ;;
+        float)
+            echo "the size of float : 4"
+            ;;
+        double)
+            echo "the size of double : 8"
+            ;;
+        long)
+            echo  "the size of long : 8"
+            ;;
+        *)
+            echo "Unknown data type"
+            ;;
+    esac
+}
+
+
+
+#and checking size
+datatype="$1"
+size=$(get_data_type_size "$datatype")
+
+if [ "$size" != "Unknown data type" ]; then
+    echo "Size of $datatype: $size"
+else
+    echo "Invalid datatype. Supported datatypes: int , char , float , double , long"
+fi
+echo
+if [[ "$char" == [a-z] ]]; 
+then
+    echo "The entered character '$char' is a lowercase letter."
+elif [[ "$char" == [A-Z] ]]; 
+then
+    echo "The entered character '$char' is an uppercase letter."
+else
+    echo "The entered character '$char' is not a letter."
+fi
+
+
+#!/bin/bash
+
+# Prompt the user to enter the filename
+read -p "Enter the filename: " filename
+
+# Check if the file exists
+if [ -f "$filename" ]; then
+    # Use wc to count the number of lines
+    num_lines=$(wc -l < "$filename")
+    echo "The file $filename has $num_lines lines."
+else
+    echo "The file $filename does not exist."
+fi
+
+
+#!/bin/bash
+insertion_sort()
+{
+    local arr=("$@")
+    local n=${#arr[@]}
+    for((i=1; i<n; i++))
+    do
+    temp=${arr[i]}
+    j=$(($i-1))
+        while(($j>=0 && ${arr[$j]}>$temp))
+        do
+        arr[j+1]=${arr[j]}
+        j=$(($j-1))
+        done
+        arr[j+1]=$temp
+    done
+    echo "${arr[@]}"
+}
+
+echo "Enter the number of elements in array"
+read n
+myArray=()
+echo "Enter the elements "
+
+for ((i=0; i<n; i++))
+do
+
+read num
+myArray[$i]=$num
+done
+echo "Elements in the array before sorting are: ${myArray[@]}"
+
+myArray=($(insertion_sort "${myArray[@]}" ))
+
+echo "Elements in the array after sorting are: ${myArray[@]}"
+ 
+
+insertion_sort()
+{
+    local arr=("$@")
+    local n=${#arr[@]}
+    for((i=1; i<n; i++))
+    do
+    temp=${arr[i]}
+    j=$(($i-1))
+        while(($j>=0 && ${arr[$j]}>$temp))
+        do
+        arr[j+1]=${arr[j]}
+        j=$(($j-1))
+        done
+        arr[j+1]=$temp
+    done
+    echo "${arr[@]}"
+}
+
+echo "Enter the number of elements in array"
+read n
+myArray=()
+echo "Enter the elements "
+
+for ((i=0; i<n; i++))
+do
+
+read num
+myArray[$i]=$num
+done
+echo "Elements in the array before sorting are: ${myArray[@]}"
+
+myArray=($(insertion_sort "${myArray[@]}" ))
+
+echo "Elements in the array after sorting are: ${myArray[@]}"
+ 
+
+
+
+#!/bin/bash
+
+# Function to find the first occurrence of a word in a string
+find_first_occurrence() {
+    input_string="$1"
+    word_to_find="$2"
+
+    # Use grep to find the first occurrence of the word
+    first_occurrence=$(echo "$input_string" | grep -o "\b$word_to_find\b" | head -n 1)
+
+    if [ -z "$first_occurrence" ]; then
+        echo "Word '$word_to_find' not found in the string."
+    else
+        echo "First occurrence of '$word_to_find': $first_occurrence"
+    fi
+}
+
+# Main script
+
+# Prompt the user to enter a string
+read -p "Enter a string: " input_string
+
+# Prompt the user to enter a word to find
+read -p "Enter the word to find: " word_to_find
+
+# Call the function to find the first occurrence of the word
+find_first_occurrence "$input_string" "$word_to_find"
+
+
+
+#!/bin/bash
+
+reverse_string() {
+    local input=$1
+    local length=${#input}
+    local reversed=""
+
+    for ((i = length - 1; i >= 0; i--));
+    do
+        reversed="${reversed}${input:$i:1}"
+    done
+
+    echo "$reversed"
+}
+if ! test -f file.txt; then
+  echo "File does not exist."
+else
+value=`cat file.txt`
+echo "$value"
+
+echo -e "\nReversing the content of file line by line:\n"
+reversed_value1=`tac file.txt`
+printf "%s""$reversed_value1"
+
+echo -e "\n\nReversing the content of file character by character:\n "
+reversed_value2=$(reverse_string "$value") 
+printf "%s\n" "$reversed_value2"
+
+fi
+
+
+#!/bin/bash
+
+input_file="$1"
+
+if [ ! -f "$input_file" ]; then
+    echo "File $input_file not found."
+    exit 1
+fi
+
+echo "Original content:"
+awk -F$'\t' '{printf "%-5s%-20s%-5s%-5s\n", $1, $2, $3, $4}' "$input_file"
+
+echo
+echo "Sorting by name:"
+sort -t$'\t' -k2,2 "$input_file" | awk -F$'\t' '{printf "%-5s%-20s%-5s%-5s\n", $1, $2, $3, $4}' | tee "sorted_output.txt"
+echo "Output stored in sorted_output.txt file"
+
+
+#!/bin/bash
+
+# Function to get the length of a string
+string_length() {
+    local str="$1"
+    echo "${#str}"
+}
+
+# Function to concatenate two strings
+concatenate_strings() {
+    local str1="$1"
+    local str2="$2"
+    echo "${str1}${str2}"
+}
+
+# Function to extract a substring
+substring() {
+    local str="$1"
+    local position="$2"
+    local length="$3"
+    echo "${str:$position:$length}"
+}
+
+# Function to find a substring in a string
+find_substring() {
+    local str="$1"
+    local substr="$2"
+    if [[ "$str" == *"$substr"* ]]; then
+        echo "Found"
+    else
+        echo "Not Found"
+    fi
+}
+
+# Function to replace a substring with another string
+replace_substring() {
+    local str="$1"
+    local substr="$2"
+    local replacement="$3"
+    echo "${str//$substr/$replacement}"
+}
+
+# Function to convert a string to uppercase
+uppercase() {
+    local str="$1"
+    echo "${str^^}"
+}
+
+# Function to convert a string to lowercase
+lowercase() {
+    local str="$1"
+    echo "${str,,}"
+}
+
+# Test the functions
+test_string="Hello, Bash Scripting!"
+
+echo "Original string: $test_string"
+echo "Length of the string: $(string_length "$test_string")"
+
+concatenated_string=$(concatenate_strings "Hello" " World!")
+echo "Concatenated string: $concatenated_string"
+
+substring_result=$(substring "$test_string" 7 4)
+echo "Substring (position 7, length 4): $substring_result"
+
+find_substring_result=$(find_substring "$test_string" "Bash")
+echo "Finding 'Bash' in the string: $find_substring_result"
+
+replaced_string=$(replace_substring "$test_string" "Bash" "Shell")
+echo "String after replacing 'Bash' with 'Shell': $replaced_string"
+
+uppercase_string=$(uppercase "$test_string")
+echo "String in uppercase: $uppercase_string"
+
+lowercase_string=$(lowercase "$test_string")
+echo "String in lowercase: $lowercase_string"
+
+
+#!/bin/bash
+
+# Function to check if a number is a palindrome
+is_palindrome() {
+    local num="$1"
+    local reverse_num=$(echo "$num" | rev)
+    
+    if [ "$num" -eq "$reverse_num" ]; then
+        echo "Palindrome"
+    else
+        echo "Not a palindrome"
+    fi
+}
+
+# Read input from the user
+read -p "Enter a number: " input_number
+
+# Check if the input is a valid number
+if ! [[ "$input_number" =~ ^[0-9]+$ ]]; then
+    echo "Invalid input. Please enter a valid number."
+    exit 1
+fi
+
+# Check if the number is a palindrome
+result=$(is_palindrome "$input_number")
+echo "$result"
+
+
+#!/bin/bash
+
+# Function to generate Fibonacci sequence
+fibonacci() {
+    local n=$1
+    local a=0
+    local b=1
+
+    echo "Fibonacci sequence up to $n terms:"
+    for (( i=0; i<n; i++ )); do
+        echo -n "$a "
+        local next=$((a + b))
+        a=$b
+        b=$next
+    done
+    echo
+}
+
+# Read the number of terms from the user
+read -p "Enter the number of terms: " num_terms
+
+# Validate the input
+if ! [[ "$num_terms" =~ ^[0-9]+$ ]]; then
+    echo "Invalid input. Please enter a positive integer."
+    exit 1
+fi
+
+# Generate the Fibonacci sequence
+fibonacci "$num_terms"
+
+
+#!/bin/bash
+
+# Function to check if a number is prime
+is_prime() {
+    local num=$1
+
+    # Handle special cases
+    if [ "$num" -le 1 ]; then
+        echo "Not a prime number"
+        return
+    fi
+    if [ "$num" -le 3 ]; then
+        echo "Prime number"
+        return
+    fi
+    if [ $((num % 2)) -eq 0 ] || [ $((num % 3)) -eq 0 ]; then
+        echo "Not a prime number"
+        return
+    fi
+
+    # Check divisors from 5 to sqrt(num)
+    local i=5
+    while [ $((i * i)) -le "$num" ]; do
+        if [ $((num % i)) -eq 0 ] || [ $((num % (i + 2))) -eq 0 ]; then
+            echo "Not a prime number"
+            return
+        fi
+        i=$((i + 6))
+    done
+
+    echo "Prime number"
+}
+
+# Read input from the user
+read -p "Enter a number: " input_number
+
+# Check if the input is a valid number
+if ! [[ "$input_number" =~ ^[0-9]+$ ]]; then
+    echo "Invalid input. Please enter a valid positive integer."
+    exit 1
+fi
+
+# Check if the number is prime
+result=$(is_prime "$input_number")
+echo "$result"
+
+#!/bin/bash
+
+# Function to perform addition
+addition() {
+    echo "$(($1 + $2))"
+}
+
+# Function to perform subtraction
+subtraction() {
+    echo "$(($1 - $2))"
+}
+
+# Function to perform multiplication
+multiplication() {
+    echo "$(($1 * $2))"
+}
+
+# Function to perform division
+division() {
+    if [ "$2" -eq 0 ]; then
+        echo "Division by zero is not allowed"
+    else
+        echo "$(($1 / $2))"
+    fi
+}
+
+# Function to perform modulus operation
+modulus() {
+    echo "$(($1 % $2))"
+}
+
+# Read inputs from the user
+read -p "Enter the first number: " num1
+read -p "Enter the second number: " num2
+
+# Check if inputs are valid numbers
+if ! [[ "$num1" =~ ^-?[0-9]+$ ]] || ! [[ "$num2" =~ ^-?[0-9]+$ ]]; then
+    echo "Invalid input. Please enter valid integers."
+    exit 1
+fi
+
+# Read the operation choice from the user
+echo "Select an operation:"
+echo "1. Addition"
+echo "2. Subtraction"
+echo "3. Multiplication"
+echo "4. Division"
+echo "5. Modulus"
+read -p "Enter your choice (1-5): " choice
+
+# Perform the chosen operation
+case $choice in
+    1)
+        result=$(addition "$num1" "$num2")
+        echo "Result: $num1 + $num2 = $result"
+        ;;
+    2)
+        result=$(subtraction "$num1" "$num2")
+        echo "Result: $num1 - $num2 = $result"
+        ;;
+    3)
+        result=$(multiplication "$num1" "$num2")
+        echo "Result: $num1 * $num2 = $result"
+        ;;
+    4)
+        result=$(division "$num1" "$num2")
+        echo "Result: $num1 / $num2 = $result"
+        ;;
+    5)
+        result=$(modulus "$num1" "$num2")
+        echo "Result: $num1 % $num2 = $result"
+        ;;
+    *)
+        echo "Invalid choice. Please select a valid operation."
+        exit 1
+        ;;
+esac
+
+
+
+
